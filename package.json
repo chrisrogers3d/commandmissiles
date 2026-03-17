@@ -1,0 +1,19 @@
+{
+  "name": "commandmissiles",
+  "version": "1.0.0",
+  "description": "WebXR AR Missile Command with 3D voxel graphics and surface placement",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "private": true
+}
