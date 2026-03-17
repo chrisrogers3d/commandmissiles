@@ -3,3 +3,6 @@ dist/
 .cert/
 .DS_Store
 *.log
+.claude/
+art/
+.idea/

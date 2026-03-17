@@ -9,13 +9,21 @@ const AR_CONFIG = {
     citySize: 0.12,             // Size of city buildings
     cityColor: 0x4a5a6a,        // Bluish-gray color for cities
 
+    // Procedural city settings
+    proceduralCities: true,     // true = procedural destructible cities, false = original simple blocks
+    cityHealth: 5,              // Hits to destroy (only when proceduralCities = true)
+    cityVoxelSize: 0.025,       // Smaller voxels for procedural cities
+    cityLength: 40,             // Voxels along X axis
+    cityMaxHeight: 12,          // Max building height in voxels
+    cityDepth: 4,               // Voxels along Z axis
+
     // Missile spawn settings
     missileSpawnHeight: 5.0,    // How high missiles spawn above viewer
     missileSpawnDistance: 2.2,  // How far back missiles spawn
     missileSpawnWidth: 4.0,     // Horizontal spread of missile spawns
 
     // Crosshair settings
-    crosshairDistance: 3.0,     // How far crosshair plane is from viewer
+    crosshairDistance: 2.1,     // How far crosshair plane is from viewer
     crosshairSize: 0.25,        // Size of crosshair (radius)
     crosshairVoxelSize: 0.04,   // Size of crosshair voxels
     crosshairColor: 0x00ff00,   // Bright green
@@ -166,33 +174,114 @@ function createLivingRoom() {
 
 // Create Cities (voxel style) - positioned for AR
 function createCities() {
+    // Clear existing cities
+    cities.forEach(city => scene.remove(city.mesh));
+    cities.length = 0;
+
     const spacing = AR_CONFIG.citySpacing;
     const cityPositions = [
         -spacing, -spacing * 0.6, -spacing * 0.2,
         spacing * 0.2, spacing * 0.6, spacing
     ];
 
-    cityPositions.forEach((x, index) => {
-        const cityGroup = new THREE.Group();
-
-        // Create blocky buildings using config
-        const size = AR_CONFIG.citySize;
-        const voxelSize = 0.04;
-        for (let bx = -size; bx <= size; bx += voxelSize) {
-            for (let by = 0; by <= size * 2.5; by += voxelSize) {
-                for (let bz = -size; bz <= size; bz += voxelSize) {
-                    const voxel = createVoxel(AR_CONFIG.cityColor, 0.038);
-                    voxel.position.set(bx, by, bz);
-                    cityGroup.add(voxel);
+    if (!AR_CONFIG.proceduralCities) {
+        // Original simple block cities (1-hit kill)
+        cityPositions.forEach((x, index) => {
+            const cityGroup = new THREE.Group();
+            const size = AR_CONFIG.citySize;
+            const voxelSize = 0.04;
+            for (let bx = -size; bx <= size; bx += voxelSize) {
+                for (let by = 0; by <= size * 2.5; by += voxelSize) {
+                    for (let bz = -size; bz <= size; bz += voxelSize) {
+                        const voxel = createVoxel(AR_CONFIG.cityColor, 0.038);
+                        voxel.position.set(bx, by, bz);
+                        cityGroup.add(voxel);
+                    }
                 }
             }
-        }
+            cityGroup.position.set(x, 0.1, -AR_CONFIG.cityDistance);
+            scene.add(cityGroup);
+            cities.push({ mesh: cityGroup, alive: true, index });
+        });
+    } else {
+        // Procedural destructible cities
+        cityPositions.forEach((x, index) => {
+            const cityGroup = new THREE.Group();
+            const vs = AR_CONFIG.cityVoxelSize;
+            const cityVoxels = [];
+            const baseColor = new THREE.Color(AR_CONFIG.cityColor);
+            const totalWidth = AR_CONFIG.cityLength;
+            const maxH = AR_CONFIG.cityMaxHeight;
+            const depth = AR_CONFIG.cityDepth;
 
-        // Position cities using config distance
-        cityGroup.position.set(x, 0.1, -AR_CONFIG.cityDistance);
-        scene.add(cityGroup);
-        cities.push({ mesh: cityGroup, alive: true, index });
-    });
+            // Accent colors for windows (cyberpunk neon)
+            const accentColors = [0x00ffff, 0xff00ff, 0x00ff88];
+
+            // Generate buildings by walking along X
+            let xPos = 0;
+            while (xPos < totalWidth) {
+                const bWidth = 3 + Math.floor(Math.random() * 6); // 3-8 voxels wide
+                const bHeight = 3 + Math.floor(Math.random() * (maxH - 3 + 1)); // 3-maxH
+                const gap = 1 + Math.floor(Math.random() * 2); // 1-2 voxel gap
+
+                if (xPos + bWidth > totalWidth) break;
+
+                const accentColor = accentColors[Math.floor(Math.random() * accentColors.length)];
+
+                for (let bx = 0; bx < bWidth; bx++) {
+                    for (let by = 0; by < bHeight; by++) {
+                        for (let bz = 0; bz < depth; bz++) {
+                            // Window cutouts: on front/back face, regular grid pattern
+                            const isFace = (bz === 0 || bz === depth - 1);
+                            const isWindowSlot = isFace && by > 0 && by < bHeight - 1 &&
+                                bx > 0 && bx < bWidth - 1 &&
+                                by % 2 === 1 && bx % 2 === 1;
+
+                            let color;
+                            if (isWindowSlot) {
+                                // Lit window - bright accent
+                                if (Math.random() > 0.3) {
+                                    color = accentColor;
+                                } else {
+                                    continue; // dark window = skip voxel
+                                }
+                            } else {
+                                // Building wall - slight color variation
+                                const variation = 0.85 + Math.random() * 0.3;
+                                color = baseColor.clone().multiplyScalar(variation);
+                            }
+
+                            const voxel = createVoxel(color, vs * 0.95);
+                            if (isWindowSlot) {
+                                voxel.material.emissiveIntensity = 0.8;
+                            }
+                            const px = (xPos + bx - totalWidth / 2) * vs;
+                            const py = by * vs;
+                            const pz = (bz - depth / 2) * vs;
+                            voxel.position.set(px, py, pz);
+                            cityGroup.add(voxel);
+                            cityVoxels.push(voxel);
+                        }
+                    }
+                }
+
+                xPos += bWidth + gap;
+            }
+
+            cityGroup.position.set(x, 0.1, -AR_CONFIG.cityDistance);
+            scene.add(cityGroup);
+            cities.push({
+                mesh: cityGroup,
+                alive: true,
+                index,
+                health: AR_CONFIG.cityHealth,
+                voxels: cityVoxels
+            });
+        });
+    }
+
+    gameState.cities = 6;
+    updateUI();
 }
 
 // Missile Class
@@ -200,9 +289,28 @@ class Missile {
     constructor(startPos, targetPos, speed, color, voxelSize, isDefense = false) {
         this.group = new THREE.Group();
 
-        // Create voxel trail
+        // Create voxel trail with gradient
         for (let i = 0; i < 5; i++) {
-            const voxel = createVoxel(color, voxelSize);
+            let voxelColor;
+
+            if (isDefense) {
+                // Defense missiles: regular, white, then darker shades
+                if (i === 0) {
+                    voxelColor = color; // Regular green
+                } else if (i === 1) {
+                    voxelColor = 0xffffff; // White
+                } else {
+                    // Darker shades from white to dark
+                    const brightness = 1.0 - ((i - 1) / 4) * 0.7;
+                    voxelColor = new THREE.Color(brightness, brightness, brightness);
+                }
+            } else {
+                // Enemy missiles: brightest first, then darker
+                const brightness = 1.0 - (i / 5) * 0.6;
+                voxelColor = new THREE.Color(color).multiplyScalar(brightness);
+            }
+
+            const voxel = createVoxel(voxelColor, voxelSize);
             voxel.position.z = -i * 0.05;
             this.group.add(voxel);
         }
@@ -250,17 +358,16 @@ class Missile {
 
 // Explosion Class
 class Explosion {
-    constructor(position, color) {
+    constructor(position, color, particleCount = 40, radius = AR_CONFIG.explosionRadius) {
         this.group = new THREE.Group();
         this.particles = [];
-        this.maxRadius = AR_CONFIG.explosionRadius;
+        this.maxRadius = radius;
         this.currentRadius = 0;
         this.expandSpeed = 2;
         this.life = AR_CONFIG.explosionDuration;
         this.position = position.clone();
 
         // Create expanding voxel sphere - uniformly distributed in 3D
-        const particleCount = 40;
         for (let i = 0; i < particleCount; i++) {
             const voxel = createVoxel(color, 0.05);
 
@@ -310,6 +417,40 @@ class Explosion {
 function createExplosion(position, color) {
     const explosion = new Explosion(position, color);
     explosions.push(explosion);
+}
+
+// Damage a procedural city at a given impact position
+function damageCityAt(city, impactPosition) {
+    if (!city.alive) return;
+
+    city.health -= 1;
+
+    // Convert impact position to city-local space
+    const localImpact = city.mesh.worldToLocal(impactPosition.clone());
+    // Blast radius scaled to city voxel size — destroy a cluster of nearby voxels
+    const blastRadius = AR_CONFIG.cityVoxelSize * 5;
+
+    for (let i = city.voxels.length - 1; i >= 0; i--) {
+        const voxel = city.voxels[i];
+        if (voxel.position.distanceTo(localImpact) < blastRadius) {
+            city.mesh.remove(voxel);
+            voxel.geometry.dispose();
+            voxel.material.dispose();
+            city.voxels.splice(i, 1);
+        }
+    }
+
+    // Spawn a small explosion at impact point
+    const explosion = new Explosion(impactPosition.clone(), AR_CONFIG.cityColor, 15, blastRadius * 2);
+    explosions.push(explosion);
+
+    if (city.health <= 0 || city.voxels.length === 0) {
+        city.alive = false;
+        scene.remove(city.mesh);
+        gameState.cities--;
+        updateUI();
+        if (gameState.cities <= 0) gameOver();
+    }
 }
 
 // Spawn Enemy Missile - adjusted for AR space with vertical drop
@@ -417,15 +558,36 @@ function checkCollisions() {
         cities.forEach(city => {
             if (!city.alive) return;
 
-            if (missile.group.position.distanceTo(city.mesh.position) < 0.3) {
-                missile.explode();
-                city.alive = false;
-                scene.remove(city.mesh);
-                gameState.cities--;
-                updateUI();
+            if (!AR_CONFIG.proceduralCities) {
+                // Original logic: 1-hit kill using distance to center
+                const dist = missile.group.position.distanceTo(city.mesh.position);
+                if (dist < 0.3) {
+                    missile.explode();
+                    city.alive = false;
+                    scene.remove(city.mesh);
+                    gameState.cities--;
+                    updateUI();
+                    if (gameState.cities <= 0) gameOver();
+                }
+            } else {
+                // Procedural cities: check against bounding box
+                const missilePos = missile.group.position;
+                const cityPos = city.mesh.position;
+                const vs = AR_CONFIG.cityVoxelSize;
+                const halfWidth = (AR_CONFIG.cityLength / 2) * vs;
+                const height = AR_CONFIG.cityMaxHeight * vs;
+                const halfDepth = (AR_CONFIG.cityDepth / 2) * vs;
+                const margin = 0.05; // small hit margin
 
-                if (gameState.cities <= 0) {
-                    gameOver();
+                const dx = missilePos.x - cityPos.x;
+                const dy = missilePos.y - cityPos.y;
+                const dz = missilePos.z - cityPos.z;
+
+                if (Math.abs(dx) < halfWidth + margin &&
+                    dy > -margin && dy < height + margin &&
+                    Math.abs(dz) < halfDepth + margin) {
+                    missile.explode();
+                    damageCityAt(city, missilePos.clone());
                 }
             }
         });
@@ -522,6 +684,15 @@ function onSelectStart(event) {
             surfacePosition.y + 1.0,
             surfacePosition.z
         );
+
+        // Update AR UI position relative to surface
+        if (arUI) {
+            arUI.position.set(
+                surfacePosition.x - 1.5,
+                surfacePosition.y + 2.5,
+                surfacePosition.z
+            );
+        }
 
         // Start game
         if (!gameState.gameStarted) {
@@ -691,11 +862,71 @@ function playSound(type) {
     }
 }
 
+// 3D UI for AR mode
+let arUI = null;
+
+function createARUI() {
+    if (arUI) return;
+
+    const group = new THREE.Group();
+
+    // Create canvas for text
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // Function to update the canvas
+    function updateARUICanvas() {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = '24px "Press Start 2P"';
+        ctx.fillStyle = '#00ff00';
+        ctx.textAlign = 'left';
+
+        ctx.fillText(`SCORE: ${gameState.score}`, 20, 60);
+        ctx.fillText(`CITIES: ${gameState.cities}`, 20, 120);
+        ctx.fillText(`AMMO: ${gameState.ammo}`, 20, 180);
+
+        texture.needsUpdate = true;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide
+    });
+    const geometry = new THREE.PlaneGeometry(1, 0.5);
+    const mesh = new THREE.Mesh(geometry, material);
+
+    mesh.position.set(-1.5, 2.5, -3);
+    group.add(mesh);
+
+    group.userData.updateCanvas = updateARUICanvas;
+    updateARUICanvas();
+
+    arUI = group;
+    scene.add(arUI);
+}
+
+function updateARUI() {
+    if (arUI && arUI.userData.updateCanvas) {
+        arUI.userData.updateCanvas();
+    }
+}
+
 // UI Updates
 function updateUI() {
     document.getElementById('score').textContent = gameState.score;
     document.getElementById('cities').textContent = gameState.cities;
     document.getElementById('ammo').textContent = gameState.ammo;
+
+    // Update AR UI if in VR mode
+    if (gameState.inVR) {
+        updateARUI();
+    }
 }
 
 // Game Loop
@@ -849,6 +1080,7 @@ async function startARSession() {
         document.getElementById('start-game').style.display = 'none';
 
         setupHandTracking();
+        createARUI();
 
         debugLog('AR session started successfully');
         debugLog('Tap a surface to place the game');
@@ -863,6 +1095,10 @@ async function startARSession() {
             hitTestSource = null;
             hitTestSourceRequested = false;
             if (reticle) reticle.visible = false;
+            if (arUI) {
+                scene.remove(arUI);
+                arUI = null;
+            }
         });
 
     } catch(error) {
@@ -926,8 +1162,11 @@ gui.title('AR Config');
 
 // City settings folder
 const cityFolder = gui.addFolder('Cities');
+cityFolder.add(AR_CONFIG, 'proceduralCities').name('Procedural').onChange(() => {
+    createCities();
+});
+cityFolder.add(AR_CONFIG, 'cityHealth', 1, 20, 1).name('Health');
 cityFolder.add(AR_CONFIG, 'cityDistance', 1, 10, 0.1).name('Distance').onChange(() => {
-    // Update city positions
     cities.forEach((cityData, i) => {
         cityData.mesh.position.z = -AR_CONFIG.cityDistance;
     });
@@ -974,3 +1213,12 @@ window.startARSession = async function() {
 
 renderer.setAnimationLoop(animate);
 updateUI();
+
+// Hide loading indicator and show UI when ready
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('start-game').style.display = 'block';
+        document.getElementById('instructions').style.display = 'block';
+    }, 500);
+});

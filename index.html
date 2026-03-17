@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Command Missiles AR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Courier New', monospace;
+            font-family: 'Press Start 2P', 'Courier New', monospace;
             background: #000;
         }
         #canvas-container {
@@ -54,6 +57,13 @@
             text-shadow: 0 0 10px #0f0;
             pointer-events: none;
         }
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+        .loading-dots {
+            animation: blink 1.5s infinite;
+        }
     </style>
 </head>
 <body>
@@ -63,10 +73,17 @@
         <div>CITIES: <span id="cities">6</span></div>
         <div>AMMO: <span id="ammo">30</span></div>
     </div>
-    <button id="start-game" style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); padding: 15px 30px; font-size: 18px; background: #0ff; color: #000; border: none; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; display: block;">START GAME</button>
+    <div id="loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #0f0; font-size: 24px; text-align: center; z-index: 200;">
+        <div style="font-size: 48px; margin-bottom: 20px;">⚡</div>
+        <div>LOADING COMMAND MISSILES...</div>
+        <div style="margin-top: 10px; font-size: 16px;">
+            <span class="loading-dots">...</span>
+        </div>
+    </div>
+    <button id="start-game" style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); padding: 15px 30px; font-size: 18px; background: #0ff; color: #000; border: none; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; display: none;">START GAME</button>
     <button id="enter-vr">ENTER AR</button>
     <div id="debug" style="position: absolute; top: 120px; left: 20px; color: #ff0; font-size: 14px; z-index: 100; pointer-events: none;"></div>
-    <div id="instructions">
+    <div id="instructions" style="display: none;">
         ADJUST CONFIG THEN START<br>
         MOUSE TO AIM | CLICK TO FIRE<br>
         AR: POINT AND PINCH TO FIRE
