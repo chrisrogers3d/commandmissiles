@@ -40,7 +40,7 @@ const AR_CONFIG = {
 
     // Explosion settings
     explosionRadius: 0.5,       // How big explosions get (X/Y radius)
-    explosionDepth: 2.0,        // How far explosions extend in Z direction (depth)
+    explosionDepth: 5.0,        // How far explosions extend in Z direction (depth)
     explosionDuration: 1.0      // How long explosions last
 };
 
